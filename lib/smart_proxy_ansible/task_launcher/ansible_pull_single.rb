@@ -24,22 +24,21 @@ module Proxy::Ansible
 
         inventory = { 'all' => { 'hosts' => { name: nil }, 'vars' => inventory_hash['all']['vars'].merge(vars[name]) } }
 
-        # We leverage process substitution to create "temporary files which don't stick around"
-        # If the pull provider would set up a directory for us to write into, we could just write those files out, exec into ansible-playbook and rely on the pull provider to wipe the directory afterwards. This way we wouldn't use an bash specific features and we could use posix sh instead.
         <<~SCRIPT
-          #!/bin/bash
-          # We need to force the inventory plugin. Ansible attempts to autodetect the format, but each attempt reads the file again from the start, which doesn't really work when the inventory is piped in
-          export ANSIBLE_INVENTORY_ENABLED=yaml
+          #!/bin/sh
+          
+          WORKDIR="$(dirname "$0")"
 
-          # ansible_connection variable has higher precedence than --connection=local
-          exec ansible-playbook -e ansible_connection=local --inventory <(base64 -d <<EOF
+          base64 -d >"${WORKDIR}/inventory" <<EOF
           #{Base64.strict_encode64(JSON.dump(inventory))}
           EOF
-          ) \
-          <(base64 -d <<EOF
+
+          base64 -d >"${WORKDIR}/playbook" <<EOF
           #{Base64.strict_encode64(input['action_input']['script'])}
           EOF
-          )
+
+          # ansible_connection variable has higher precedence than --connection=local
+          exec ansible-playbook -e ansible_connection=local --inventory "${WORKDIR}/inventory" "${WORKDIR}/playbook"
         SCRIPT
       end
     end
