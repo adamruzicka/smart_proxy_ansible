@@ -12,6 +12,15 @@ module Proxy
       load_classes ::Proxy::Ansible::ConfigurationLoader
       load_validators :validate_settings => ::Proxy::Ansible::ValidateSettings
       validate :validate!, :validate_settings => nil
+      after_activation do
+
+      launcher_class = if Proxy::RemoteExecution::Ssh::Plugin.settings.mode == "pull-mqtt"
+			       TaskLauncher::AnsiblePullBatch
+		       else
+			       TaskLauncher::AnsibleRunner
+		       end
+      Proxy::Dynflow::TaskLauncherRegistry.register('ansible-runner', launcher_class)
+      end
     end
   end
 end
