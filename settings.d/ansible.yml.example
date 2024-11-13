@@ -2,3 +2,4 @@
 :enabled: true
 :working_dir: '~/.foreman-ansible'
 # :ansible_environment_file: /etc/foreman-proxy/ansible.env
+:ansible_execution_environment_image: "registry.redhat.io/ansible-automation-platform/ee-minimal-rhel8:2.15.12-16"
