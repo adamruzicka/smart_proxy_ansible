@@ -204,13 +204,20 @@ module Proxy::Ansible
         env = {}
         env['FOREMAN_CALLBACK_DISABLE'] = '1' if @rex_command
         env['SMART_PROXY_ANSIBLE_ENVIRONMENT_FILE'] = Proxy::Ansible::Plugin.settings[:ansible_environment_file]
-        # TODO: Mount roles
-        # TODO: Mount known_hosts
-        # TODO: Mount keys
+        # TODO?: Should we read and parse ansible.env (if any) and bind mount any paths we find being used inside?
         podman_command = ['podman', 'run',
           '--rm',
           '--volume', "#{@root}:#{@root}:z",
+          # TODO?: By default, the callback uses certs from /etc/foreman-proxy/, although they can really be anywhere
+          '--volume', '/etc/foreman-proxy:/etc/foreman-proxy:z,ro',
+          # TODO?: Technically we don't need this, we could have this happen on the host side and then propagate the environment into the container with --env-host
           '--volume', "#{ENVIRONMENT_WRAPPER}:#{ENVIRONMENT_WRAPPER}:z,ro",
+          '--volume', "#{Dir.home}/.ssh:/root/.ssh:z",
+          # Just in case configured private key is outisde of $HOME/.ssh
+          '--volume', "#{Proxy::RemoteExecution::Ssh::Plugin.settings[:ssh_identity_key_file]}:#{Proxy::RemoteExecution::Ssh::Plugin.settings[:ssh_identity_key_file]}:z,ro",
+          # Ansible configuration, roles and collections from the host
+          '--volume', "/usr/share/ansible:/usr/share/ansible:z,ro",
+          '--volume', "/etc/ansible:/etc/ansible:z,ro",
           '--env', 'SMART_PROXY_ANSIBLE_ENVIRONMENT_FILE',
           '--env', 'FOREMAN_CALLBACK_DISABLE',
         ]
@@ -219,11 +226,11 @@ module Proxy::Ansible
          podman_command << "#{Proxy::Ansible::Plugin.settings[:ansible_environment_file]}:#{Proxy::Ansible::Plugin.settings[:ansible_environment_file]}:z,ro"
         end
         podman_command << Proxy::Ansible::Plugin.settings[:ansible_execution_environment_image]
-        command = podman_command + ['ansible-runner', 'run', @root, '-p', 'playbook.yml']
+        command = podman_command + [ENVIRONMENT_WRAPPER, 'ansible-runner', 'run', @root, '-p', 'playbook.yml']
         command << '--cmdline' << cmdline unless cmdline.nil?
         command << verbosity if verbose?
 
-        initialize_command(env, ENVIRONMENT_WRAPPER, *command)
+        initialize_command(env, *command)
         logger.debug("[foreman_ansible] - Running command '#{command.join(' ')}'")
       end
 
