@@ -71,8 +71,8 @@ module Proxy::Ansible
         @targets.each_key { |host| publish_exit_status_for(host, @exit_statuses[host]) } if status != 0
       end
 
-      def initialize_command(*command)
-        super
+      def initialize_command(*command, chdir: nil)
+        super(*command, chdir: chdir)
         @process_manager.stdin.close unless @process_manager.done?
       end
 
@@ -204,11 +204,30 @@ module Proxy::Ansible
         env = {}
         env['FOREMAN_CALLBACK_DISABLE'] = '1' if @rex_command
         env['SMART_PROXY_ANSIBLE_ENVIRONMENT_FILE'] = Proxy::Ansible::Plugin.settings[:ansible_environment_file]
-        command = ['ansible-runner', 'run', @root, '-p', 'playbook.yml']
+        command = [
+          'ansible-navigator',
+          '--execution-environment-image=registry.redhat.io/ansible-automation-platform-25/ee-supported-rhel8:latest',
+          '--mode=stdout',
+          '--execution-environment-volume-mounts=/var/lib/foreman-proxy/ssh:/var/lib/foreman-proxy/ssh',
+          '--execution-environment-volume-mounts=/etc/foreman-proxy:/etc/foreman-proxy',
+          '--execution-environment-volume-mounts=/usr/share/ansible/collections:/usr/share/ansible/collections',
+          '--execution-environment-volume-mounts=/usr/share/ansible/roles:/usr/share/ansible/roles',
+          '--execution-environment-volume-mounts=/etc/ansible/roles:/etc/ansible/roles',
+          "--inventory=#{@root}/inventory/hosts.json",
+          "--ansible-runner-artifact-dir=#{@root}",
+          '--ansible-runner-write-job-events',
+          "--log-file=#{@root}/ansible-navigator.log",
+          '--pull-policy=never',
+          '--container-option=--env-host',
+          '--container-option=--cgroup-manager=cgroupfs',
+
+          'run',
+          "#{@root}/project/playbook.yml"
+        ]
         command << '--cmdline' << cmdline unless cmdline.nil?
         command << verbosity if verbose?
 
-        initialize_command(env, ENVIRONMENT_WRAPPER, *command)
+        initialize_command(env, ENVIRONMENT_WRAPPER, *command, chdir: @root)
         logger.debug("[foreman_ansible] - Running command '#{command.join(' ')}'")
       end
 
