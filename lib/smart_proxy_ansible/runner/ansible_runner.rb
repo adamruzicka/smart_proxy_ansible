@@ -204,7 +204,21 @@ module Proxy::Ansible
         env = {}
         env['FOREMAN_CALLBACK_DISABLE'] = '1' if @rex_command
         env['SMART_PROXY_ANSIBLE_ENVIRONMENT_FILE'] = Proxy::Ansible::Plugin.settings[:ansible_environment_file]
-        command = ['ansible-runner', 'run', @root, '-p', 'playbook.yml']
+        command = ['ansible-runner',
+                   'run',
+                   @root,
+                   '-p', 'playbook.yml',
+                   '--container-image', 'registry.redhat.io/ansible-automation-platform-25/ee-supported-rhel8:latest',
+                   '--process-isolation', '--process-isolation-executable=podman',
+                   '--container-option=--user=0',
+                   '--container-option=--cgroup-manager=cgroupfs',
+                   '--container-volume-mount=/var/lib/foreman-proxy/ssh/id_rsa_foreman_proxy:/var/lib/foreman-proxy/ssh/id_rsa_foreman_proxy',
+                   '--container-volume-mount=/usr/share/ansible/collections:/usr/share/ansible/collections',
+                   '--container-volume-mount=/usr/share/ansible/roles:/usr/share/ansible/roles',
+                   '--container-volume-mount=/etc/ansible/roles:/etc/ansible/roles',
+                   '--container-volume-mount=/etc/foreman-proxy:/etc/foreman-proxy',
+                   '--container-option=--env-host',
+        ]
         command << '--cmdline' << cmdline unless cmdline.nil?
         command << verbosity if verbose?
 
